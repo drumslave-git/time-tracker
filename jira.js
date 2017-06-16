@@ -153,7 +153,7 @@ const Jira = {
                     };
 
                     that.client.post(that.url + "api/2/issue/" + that.trackingIssue + "/worklog", searchArgs, function (searchResult, response) {
-                        if(debug) console.log(response);
+                        if(debug) console.log('status code:', response.statusCode);
                         if (callback) callback.bind(that)(searchResult);
                     });
                 });
@@ -176,7 +176,7 @@ const Jira = {
             };
 
             that.client.post(that.url + "api/2/issue/" + that.trackingIssue + "/worklog", searchArgs, function (searchResult, response) {
-                if(debug) console.log(response);
+                if(debug) console.log('status code:', response.statusCode);
                 if (callback) callback.bind(that)(searchResult);
             });
         }

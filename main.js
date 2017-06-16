@@ -1,10 +1,6 @@
 /**
  * Created by Goga- on 08-Jun-17.
- * @TODO Add watermark for screenshots
- * @TODO Handle errors
- * @TODO Handle async screenshots upload (when offline during tracking)
- * @TODO Create server clearing server (remove unneeded imgs)
- * @TODO Fix screenshot start time
+ *
  */
 const debug = true;
 const {app, BrowserWindow, Tray, Menu} = require('electron');
@@ -113,7 +109,7 @@ function switchTracker(on) {
                 var session = {
                     id: currentTrackingSessionId,
                     start: (Date.now() / 1000 | 0),
-                    jiraStart: moment().format('YYYY-MM-DDThh:mm:ss.sTZD'),
+                    jiraStart: moment().format('YYYY-MM-DDThh:mm:ss.SSSZZ'),
                     issue: Jira.trackingIssue,
                     end: null,
                     screenshots: {}
@@ -151,7 +147,7 @@ function setSession(id, session){
 }
 function takeScrennshot(msg) {
     let screenshot_time = (Date.now() / 1000 | 0);
-    let screenshot_jira_time = moment().format('YYYY-MM-DDThh:mm:ss.sTZD');
+    let screenshot_jira_time = moment().format('YYYY-MM-DDThh:mm:ss.SSSZZ');
     let screenshot_name = 'screenshot-' + screenshot_time + '.png';
     let screenshot_path = path.join(__dirname, 'screenshots/' + screenshot_name);
     let session = getSession(currentTrackingSessionId);
