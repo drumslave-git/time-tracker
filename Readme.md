@@ -1,13 +1,12 @@
-WhaleSoft Time Tracker App
+# WhaleSoft Time Tracker App
 
-Desktop app based on nodejs+electron
+### Desktop app based on nodejs+electron
 
-@TODO Add watermark for screenshots
-
-@TODO Handle errors
-
-@TODO Handle async screenshots upload (when offline during tracking)
-
-@TODO Create server clearing server (remove unneeded imgs)
-
-@TODO Fix screenshot start time
+## Roadmap:
+* Add watermark for screenshots
+* Handle errors
+* Handle async screenshots upload (when offline during tracking)
+* Create server clearing service (remove unneeded imgs)
+* ~~Fix screenshot start time~~
+* Add user activity monitor
+* Add subsystem to duplicate data (to make sure that user didn't manualy remove/add any data)
