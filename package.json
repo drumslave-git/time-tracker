@@ -1,0 +1,25 @@
+{
+  "name": "tracker",
+  "version": "0.0.1",
+  "main": "main.js",
+  "description": "WhaleSoft Time Tracking",
+  "dependencies": {
+    "desktop-screenshot": "^0.1.1",
+    "electron": "^1.7.2",
+    "electron-packager": "^8.7.1",
+    "electron-prebuilt": "^1.4.13",
+    "electron-winstaller": "^2.6.1",
+    "gulp": "^3.9.1",
+    "moment": "^2.18.1",
+    "node-notifier": "^5.1.2",
+    "node-rest-client": "^3.1.0",
+    "resize-img": "^1.1.2",
+    "restler": "^3.4.0"
+  },
+  "scripts": {
+    "package-mac": "electron-packager . --overwrite --platform=darwin --arch=x64 --icon=assets/icons/mac/icon.icns --prune=true --out=release-builds",
+    "package-win": "electron-packager . --overwrite --platform=win32 --arch=ia32 --icon=assets/icons/win/icon.ico --prune=true --out=release-builds --version-string.CompanyName=CE --version-string.FileDescription=CE --version-string.ProductName=\"WhaleSoft Tracker\"",
+    "package-linux": "electron-packager . --overwrite --platform=linux --arch=x64 --icon=assets/icons/png/1024x1024.png --prune=true --out=release-builds",
+    "start": "electron ."
+  }
+}
