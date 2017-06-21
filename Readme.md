@@ -12,6 +12,7 @@
     * ~~Server (remove unneeded imgs and data)~~ **Poorly tested feature**
     * ~~Clear local screenshots after successful upload~~
 * ~~Fix screenshot start time~~
+* **Fix screenshots duration**
 * **Add user activity monitor**
     * ~~Turn off tracking in case of inactivity~~
     * Measure user activity level
