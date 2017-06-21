@@ -32,10 +32,10 @@ const Jira = {
             if (response.statusCode == 200) {
                 if(debug) console.log('succesfully logged in, session:', data.session);
                 that.session = data.session;
-                if( callback) callback.bind(that)();
+                if( callback) callback.bind(that)({status: 'ok'});
             }
             else {
-                throw "Login failed :(";
+                if( callback) callback.bind(that)({status: 'error', msg: 'Login failed :('});
             }
         });
     },
@@ -56,7 +56,7 @@ const Jira = {
         };
         // Make the request return the search results, passing the header information including the cookie.
         that.client.post(that.url+"api/2/search", searchArgs, function(searchResult, response) {
-            if(debug) console.log('status code:', response.statusCode);
+            if(debug) console.log('Get issues status code:', response.statusCode);
             // if(debug) console.log('search result:', searchResult);
             if( callback) callback.bind(that)(searchResult);
         });
@@ -124,10 +124,13 @@ const Jira = {
     },
     addWorkLog: function(screenshot, callback) {
         var that = this;
-        if(screenshot.duration < 60) return;
+        if(screenshot.duration < 60) {
+            fs.unlink(screenshot.path);
+            return;
+        }
         if(screenshot.status !== "removed") {
             fs.stat(screenshot.path, function (err, stats) {
-                restler.post("http://whalesoft.com.ua/vs/tracker-save-image", {
+                restler.post("http://whalesoft.com.ua/tracker", {
                     multipart: true,
                     data: {
                         "folder_id": "0",
@@ -135,14 +138,14 @@ const Jira = {
                     }
                 }).on("complete", function (data) {
                     if (debug) console.log(data);
-                    let wurl = 'http://whalesoft.com.ua/' + data;
+                    let wurl = 'http://whalesoft.com.ua/' + data.file;
                     var searchArgs = {
                         headers: {
                             cookie: that.session.name + '=' + that.session.value,
                             "Content-Type": "application/json"
                         },
                         data: {
-                            "comment": that.trackingComment + ' \\\\ [!' + wurl + '|width=300!|' + wurl + ']',
+                            "comment": that.trackingComment + ' \\\\ [!' + wurl + '|width=300!|' + wurl + ']' + '\\\\ hash:{'+data.sn+'}',
                             "visibility": {
                                 "type": "role",
                                 "value": "Administrators"
@@ -153,7 +156,8 @@ const Jira = {
                     };
 
                     that.client.post(that.url + "api/2/issue/" + that.trackingIssue + "/worklog", searchArgs, function (searchResult, response) {
-                        if(debug) console.log('status code:', response.statusCode);
+                        if(debug) console.log('Post worklog status code:', response.statusCode);
+                        fs.unlink(screenshot.path);
                         if (callback) callback.bind(that)(searchResult);
                     });
                 });
@@ -176,7 +180,7 @@ const Jira = {
             };
 
             that.client.post(that.url + "api/2/issue/" + that.trackingIssue + "/worklog", searchArgs, function (searchResult, response) {
-                if(debug) console.log('status code:', response.statusCode);
+                if(debug) console.log('Post worklog status code:', response.statusCode);
                 if (callback) callback.bind(that)(searchResult);
             });
         }
@@ -189,11 +193,55 @@ const Jira = {
                 "Content-Type": "application/json"
             },
             data: {
+                maxResults: 2000
             }
         };
         that.client.get(that.url+"api/2/issue/"+that.trackingIssue+"/worklog", searchArgs, function(searchResult, response) {
             if(callback) callback.bind(that)(searchResult);
+            return searchResult;
         });
+    },
+    deleteWorklog: function(callback){
+        let that = this;
+        that.getWorklog(function (result) {
+            let worklogs = result.worklogs;
+            var searchArgs = {
+                headers: {
+                    cookie: that.session.name + '=' + that.session.value,
+                    "Content-Type": "application/json"
+                },
+                data: {
+                }
+            };
+            let count = worklogs.length;
+            for(let i = 0; i < worklogs.length; i++) {
+                if(debug) console.log('Removing worklog: ' + worklogs[i].id);
+                if(debug) console.log('url: ' + that.url + "api/2/issue/" + that.trackingIssue + "/worklog/" + worklogs[i].id);
+                that.client.delete(that.url + "api/2/issue/" + that.trackingIssue + "/worklog/" + worklogs[i].id, searchArgs, function (searchResult, response) {
+                    if(debug) console.log('Worklog removed: ' + response.statusCode + ' ' + response.statusMessage);
+                    count--;
+                    if(count === 0) {
+                        if (callback) callback.bind(that)(searchResult);
+                    }
+                });
+            }
+        })
+    },
+    checkScreenshots: function (callback) {
+        let that = this;
+        that.getWorklog(function (result) {
+            let worklogs = result.worklogs;
+            restler.post("http://whalesoft.com.ua/tracker/check_screenshots/", {
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                data: {
+                    "worklogs": worklogs
+                }
+            }).on('complete', function (data) {
+                if (callback) callback.bind(that)({worklogs:data});
+            });
+        })
     }
 };
 module.exports = Jira;
