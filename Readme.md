@@ -20,3 +20,8 @@
 * **Protect source code**
 * Make UI/UX better
 * **Logs system**
+
+## Notes:
+To resolve SSL issue during npm install ``npm config set registry http://registry.npmjs.org/``
+
+To resolve native module crash (robotjs) ``node-gyp rebuild --target=1.7.3 --arch=x64 --dist-url=https://atom.io/download/atom-shell --obi=50``
