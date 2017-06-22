@@ -3,7 +3,7 @@
  */
 var ipc = require('electron').ipcRenderer;
 var shell = require('electron').shell;
-
+const cfg = require('./cfg');
 $(function () {
     ipc.send('domReady');
     //open links externally by default
@@ -24,26 +24,30 @@ $(function () {
         }
     });
     ipc.on('screenshotsLoaded', (event, response) => {
+        $('#screenshots').showPreloader();
         $('#screenshots').html('');
         console.log('WORKLOG LOADED',response);
         if(response && response.worklogs){
             let worklogs = response.worklogs;
             for(var i in worklogs) {
                 let worklog = worklogs[i];
-                let comment = worklog.comment;
-                let regex = /!(.*\.png)(\|.*!)/g;
-                let url = regex.exec(comment);
-                regex = /(^.*)\\\\/g;
-                let text = regex.exec(comment);
-                if (url[1]) {
-                    $('#screenshots').prepend('<div class="col-3 mb-2">' +
-                        '<a class="" data-fancybox="gallery" data-fancybox="images" data-src="' + url[1] + '" href="javascript:;">' +
-                        '<img class="img-fluid" src="' + url[1] + '">' +
-                        '</a>' +
-                        '<p class="mb-0"><small>'+ (text[1]?text[1]:'') +'</small></p>' +
-                        '<strong>Time: </strong>'+ worklog.timeSpent +
-                        '</div>');
-                }
+                let text = worklog.comment;
+                if(typeof text == "undefined") continue;
+                let regex = /(([\w\d\s]+)\\{2})|!(.*\.png)(\|.*!)|(hash:{(.*)})/g;
+                let result = text.split(regex);
+
+                let comment = (result && result[2])?result[2]:'';
+                let img = (result && result[10])?result[10]:'';
+                let sn = (result && result[20])?result[20]:'';
+
+                $('#screenshots').prepend('<div class="col-3 mb-2"><div class="tracker-screenshot '+(!!worklog.confirmed?'bg-success':'bg-danger')+'">' +
+                    '<a class="" data-fancybox="gallery" title="'+sn+'" data-fancybox="images" data-src="' + img + '" href="javascript:;">' +
+                    '<img class="img-fluid" src="' + img + '">' +
+                    '</a>' +
+                    '<p class="mb-0"><small>'+ comment +'</small></p>' +
+                    '<strong>Time: </strong>'+ worklog.timeSpent +
+                    '</div></div>');
+
             }
         }
     });
@@ -56,6 +60,11 @@ $(function () {
             $('#jira').showPreloader();
             ipc.send('loadIssues');
         });
+    });
+    ipc.on('loginFailed', (event, response) => {
+        $('body').showPreloader();
+        $('#jira-login').show().find('input[name="username"]').val(response.username);
+        showAlert('Error','Login failed!','danger');
     });
     ipc.on('issuesLoaded', (event, response) => {
         console.log('ISSUES LOADED',response);
@@ -90,7 +99,22 @@ $(function () {
     ipc.on('projectsLoaded', (event, response) => {
         updateFilter('project', response);
     });
-
+    ipc.on('trackerSwitched', (event, response) => {
+        response = !!response;
+        if(!response){
+            $('#stop').hide();
+            $('#start').show();
+        }else{
+            $('#stop').show();
+            $('#start').hide();
+        }
+    });
+    if(cfg.debug) {
+        $('#back-to-issues').after('<button class="btn btn-danger" id="jira-remove-worklogs">Remove Worklogs</button>');
+        $('#tracker').on('click', '#jira-remove-worklogs', function () {
+            ipc.send('removeWorklogs');
+        });
+    }
     $('#logout').on('click', function () {
         ipc.send('logoutLogout');
         $('#jira-filters-form select').val('');
@@ -141,6 +165,7 @@ $(function () {
         ipc.send('issueSelected', $(this).data('key'));
         $('#current-issue').text($(this).data('key'));
         $('#tracker').show();
+        $('#screenshots').showPreloader();
     });
     $('#back-to-issues').on('click', function () {
         ipc.send('stopTracking');

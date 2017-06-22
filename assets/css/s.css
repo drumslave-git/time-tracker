@@ -29,6 +29,11 @@ body{
     width: 100%;
     resize: none;
 }
+.tracker-screenshot {
+    margin-left: -10px;
+    margin-right: -10px;
+    padding: 10px;
+}
 /*----------------PRELOADER-----------------*/
 .preloader{
     position: fixed;

@@ -1,9 +1,9 @@
 /**
  * Created by Goga- on 09-Jun-17.
  */
+const cfg = require('../cfg');
 const fs = require("fs");
 const restler = require("restler");
-const debug = true;
 const Client = require('node-rest-client').Client;
 const client = new Client();
 // Provide user credentials, which will be used to log in to JIRA.
@@ -30,11 +30,12 @@ const Jira = {
         that.client.post(that.url+"auth/1/session", loginArgs, function(data, response){
             // console.log(response);
             if (response.statusCode == 200) {
-                if(debug) console.log('succesfully logged in, session:', data.session);
+                if(cfg.debug) console.log('succesfully logged in, session:', data.session);
                 that.session = data.session;
                 if( callback) callback.bind(that)({status: 'ok'});
             }
             else {
+                if(cfg.debug) console.log('failed logged in, session:', data);
                 if( callback) callback.bind(that)({status: 'error', msg: 'Login failed :('});
             }
         });
@@ -51,13 +52,13 @@ const Jira = {
             data: {
                 // Provide additional data for the JIRA search. You can modify the JQL to search for whatever you want.
                 jql: jql,
-                maxResults: 5
+                maxResults: (cfg.debug?5:cfg.issuesRequestCountLimit)
             }
         };
         // Make the request return the search results, passing the header information including the cookie.
         that.client.post(that.url+"api/2/search", searchArgs, function(searchResult, response) {
-            if(debug) console.log('Get issues status code:', response.statusCode);
-            // if(debug) console.log('search result:', searchResult);
+            if(cfg.debug) console.log('Get issues status code:', response.statusCode);
+            // if(cfg.debug) console.log('search result:', searchResult);
             if( callback) callback.bind(that)(searchResult);
         });
     },
@@ -125,7 +126,9 @@ const Jira = {
     addWorkLog: function(screenshot, callback) {
         var that = this;
         if(screenshot.duration < 60) {
-            fs.unlink(screenshot.path);
+            fs.unlink(screenshot.path, function (err) {
+                if(cfg.debug) console.log(err);
+            });
             return;
         }
         if(screenshot.status !== "removed") {
@@ -134,10 +137,11 @@ const Jira = {
                     multipart: true,
                     data: {
                         "folder_id": "0",
-                        "filename": restler.file(screenshot.path, null, stats.size, null, "image/png")
+                        "filename": restler.file(screenshot.path, null, stats.size, null, "image/png"),
+                        "issue-key": that.trackingIssue
                     }
                 }).on("complete", function (data) {
-                    if (debug) console.log(data);
+                    if (cfg.debug) console.log(data);
                     let wurl = 'http://whalesoft.com.ua/' + data.file;
                     var searchArgs = {
                         headers: {
@@ -156,7 +160,7 @@ const Jira = {
                     };
 
                     that.client.post(that.url + "api/2/issue/" + that.trackingIssue + "/worklog", searchArgs, function (searchResult, response) {
-                        if(debug) console.log('Post worklog status code:', response.statusCode);
+                        if(cfg.debug) console.log('Post worklog status code:', response.statusCode);
                         fs.unlink(screenshot.path);
                         if (callback) callback.bind(that)(searchResult);
                     });
@@ -180,7 +184,7 @@ const Jira = {
             };
 
             that.client.post(that.url + "api/2/issue/" + that.trackingIssue + "/worklog", searchArgs, function (searchResult, response) {
-                if(debug) console.log('Post worklog status code:', response.statusCode);
+                if(cfg.debug) console.log('Post worklog status code:', response.statusCode);
                 if (callback) callback.bind(that)(searchResult);
             });
         }
@@ -215,10 +219,10 @@ const Jira = {
             };
             let count = worklogs.length;
             for(let i = 0; i < worklogs.length; i++) {
-                if(debug) console.log('Removing worklog: ' + worklogs[i].id);
-                if(debug) console.log('url: ' + that.url + "api/2/issue/" + that.trackingIssue + "/worklog/" + worklogs[i].id);
+                if(cfg.debug) console.log('Removing worklog: ' + worklogs[i].id);
+                if(cfg.debug) console.log('url: ' + that.url + "api/2/issue/" + that.trackingIssue + "/worklog/" + worklogs[i].id);
                 that.client.delete(that.url + "api/2/issue/" + that.trackingIssue + "/worklog/" + worklogs[i].id, searchArgs, function (searchResult, response) {
-                    if(debug) console.log('Worklog removed: ' + response.statusCode + ' ' + response.statusMessage);
+                    if(cfg.debug) console.log('Worklog removed: ' + response.statusCode + ' ' + response.statusMessage);
                     count--;
                     if(count === 0) {
                         if (callback) callback.bind(that)(searchResult);

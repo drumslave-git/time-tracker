@@ -2,7 +2,7 @@
  * Created by Goga- on 08-Jun-17.
  *
  */
-const debug = true;
+const cfg = require('./cfg');
 const {app, BrowserWindow, Tray, Menu} = require('electron');
 const path = require('path');
 const url = require('url');
@@ -11,14 +11,18 @@ const fs = require('fs');
 const notifier = require('node-notifier');
 const moment = require('moment');
 const ipc = require('electron').ipcMain;
-const UserData = require('./userdata.js');
+const UserData = require('./modules/userdata.js');
+const UserBehavior = require('./modules/userbehavior');
 
 let win;
-let tray = null
+let tray = null;
 let screenshots_active = false;
 let currentTrackingSessionId = null;
 let currentScreenshot = null;
-const Jira = require('./jira.js');
+const Jira = require('./modules/jira.js');
+const ub = new UserBehavior({
+    maxTimeout: cfg.maxUserActivityTimeout
+});
 
 const userdata = new UserData({
     configName: 'tracker-preferences',
@@ -36,17 +40,17 @@ fs.mkdir(path.join(__dirname, 'screenshots'), function () {});
 
 function createWindow() {
     let { width, height } = userdata.get('windowBounds');
-    win = new BrowserWindow({width: width, height: height, icon: path.join(__dirname, 'assets/imgs/1496949938_hourglass.png')});
-    if(!debug) win.setMenu(null);
+    win = new BrowserWindow({width: width, height: height, icon: path.join(__dirname, 'assets/imgs/tracker-offline.png')});
+    if(!cfg.debug) win.setMenu(null);
     win.loadURL(url.format({
         pathname: path.join(__dirname, 'index.html'),
         protocol: 'file:',
         slashes: true
     }))
 
-    if(debug) win.webContents.openDevTools({mode:'undocked'});
+    if(cfg.debug) win.webContents.openDevTools({mode:'undocked'});
 
-    tray = new Tray( path.join(__dirname, 'assets/imgs/1496949938_hourglass.png'));
+    tray = new Tray( path.join(__dirname, 'assets/imgs/tracker-offline.png'));
     const contextMenu = Menu.buildFromTemplate([
         { label: 'Show App', click:  function(){
             win.show();
@@ -98,10 +102,12 @@ function switchTracker(on) {
         return;
     }
     screenshots_active = on;
+    ub.switchCheck(screenshots_active);
+    win.webContents.send('trackerSwitched',screenshots_active);
     var user = userdata.get('user');
     if(on) {
-        tray.setImage(path.join(__dirname, 'assets/imgs/1496949940_challenge.png'));
-        win.setIcon(path.join(__dirname, 'assets/imgs/1496949940_challenge.png'));
+        tray.setImage(path.join(__dirname, 'assets/imgs/tracker-online.png'));
+        win.setIcon(path.join(__dirname, 'assets/imgs/tracker-online.png'));
         if(!currentTrackingSessionId){
             currentTrackingSessionId = user['currentTrackingSessionId'];
             if(!currentTrackingSessionId){
@@ -121,8 +127,8 @@ function switchTracker(on) {
         }
         takeScrennshot("Time tracking for issue " + Jira.trackingIssue + " is started!");
     }else{
-        tray.setImage(path.join(__dirname, 'assets/imgs/1496949938_hourglass.png'));
-        win.setIcon(path.join(__dirname, 'assets/imgs/1496949938_hourglass.png'));
+        tray.setImage(path.join(__dirname, 'assets/imgs/tracker-offline.png'));
+        win.setIcon(path.join(__dirname, 'assets/imgs/tracker-offline.png'));
         var currentSession = getSession(currentTrackingSessionId);
         currentSession.end = (Date.now() / 1000 | 0);
         setSession(currentTrackingSessionId, currentSession);
@@ -156,12 +162,12 @@ function takeScrennshot(msg) {
     let screenshot_start = session.jiraStart;
     if(session.lastScreenshotJiraTime) screenshot_start = session.lastScreenshotJiraTime;
 
-    if(debug) console.log(screenshot_path);
+    if(cfg.debug) console.log(screenshot_path);
     screenshot(screenshot_path, {width: 800}, function(error, complete) {
         if(error) {
             console.log("Screenshot failed", error);
         }else {
-            if(debug) console.log("Screenshot succeeded");
+            if(cfg.debug) console.log("Screenshot succeeded");
             currentScreenshot = {
                 name: screenshot_name,
                 path: screenshot_path,
@@ -181,29 +187,23 @@ function takeScrennshot(msg) {
                 'wait': true
             }, function (err, response) {
             });
-            // Jira.addComment(message);
+
+            let delay = getRandomInt(cfg.minScreenshotDelay * 60000, cfg.maxScreenshotDelay * 60000);
+            if(cfg.debug) console.log('Delay before next screenshot: ', delay/60000);
             setTimeout(function () {
                 if(screenshots_active) {
                     let message = 'Screenshot for issue ' + Jira.trackingIssue + ' captured!' + ' \nClick this message to remove this one.';
                     takeScrennshot(message);
                 }
-            }, getRandomInt(60000, 300000))
+            }, delay)
 
 
         }
     });
 }
 function loadScreenshots() {
-    /*fs.readdir(path.join(__dirname, 'screenshots/'), function (err, files) {
-        // console.log('FILES');
-        // console.log(files);
-        for(var i in files){
-            files[i] = path.join(__dirname, 'screenshots/' + files[i]);
-        }
-        win.webContents.send('screenshotsLoaded', files);
-    });*/
-    Jira.getWorklog(function (resp) {
-        // if(debug) console.log('WorkLog loaded', resp);
+    Jira.checkScreenshots(function (resp) {
+        if(cfg.debug) console.log('WorkLog loaded', resp);
         win.webContents.send('screenshotsLoaded', resp);
     })
 }
@@ -237,13 +237,17 @@ ipc.on('stopTracking', function(event, data){
 });
 ipc.on('checkLogin', function(event, data){
     let user = userdata.get('user');
-    if(debug) console.log(user);
+    if(cfg.debug) console.log(user);
     if(Jira.session)
         win.webContents.send('checkLoginResponse', Jira.username);
     else {
         if(user && user.username && user.password){
-            Jira.login(user.username, user.password, function () {
-                win.webContents.send('loginSuccess', user.username);
+            Jira.login(user.username, user.password, function (resp) {
+                if(resp.status === 'ok') {
+                    win.webContents.send('loginSuccess', {username: user.username, filters: user.filters});
+                }else{
+                    win.webContents.send('loginFailed', {username: user.username});
+                }
             });
         }
         else {
@@ -253,20 +257,30 @@ ipc.on('checkLogin', function(event, data){
 });
 ipc.on('loginRequest', function(event, data){
     let user = userdata.get('user');
-    if(debug && (!data.username || !data.password)){
+    if(cfg.debug && (!data.username || !data.password)){
         data = {username: 'admin', password: 'Th1515Sparta!\\./!'};
     }
-    Jira.login(data.username, data.password, function () {
-        user.username =  data.username;
-        user.password =  data.password;
-        userdata.set('user', user);
-        win.webContents.send('loginSuccess', {username: data.username, filters: data.filters});
+    Jira.login(data.username, data.password, function (resp) {
+        if(resp.status === 'ok') {
+            user.username = data.username;
+            user.password = data.password;
+            userdata.set('user', user);
+            win.webContents.send('loginSuccess', {username: data.username, filters: data.filters});
+        }else{
+            win.webContents.send('loginFailed', {username: data.username});
+        }
     });
 });
 ipc.on('logoutRequest', function(event, data){
     switchTracker(false);
     Jira.trackingIssue = null;
     Jira.session = null;
+    userdata.set('user',
+        {username:'', password:'',
+        trackingSessions:{},
+        currentTrackingSessionId: null,
+            filters:""
+    });
 });
 ipc.on('issueSelected', function(event, data){
     Jira.trackingIssue = data;
@@ -308,6 +322,19 @@ ipc.on('loadIssues', function(event, data = false){
     });
 });
 
+ipc.on('removeWorklogs', function(event, data = false){
+    Jira.deleteWorklog(function () {
+        Jira.checkScreenshots(function (resp) {
+            // if(cfg.debug) console.log('WorkLog loaded', resp);
+            win.webContents.send('screenshotsLoaded', resp);
+        })
+    })
+});
+
+ub.ee.on('maxTimeoutReached', function () {
+    switchTracker(false);
+});
+
 notifier.on('click', function (notifierObject, options) {
     if(!currentTrackingSessionId) return;
     console.log('Notification click');
@@ -324,14 +351,14 @@ notifier.on('click', function (notifierObject, options) {
         });
         setSession(currentSession);
 
-        if(debug) console.log('Screenshot removed');
+        if(cfg.debug) console.log('Screenshot removed');
     });
     // console.log(options);
 });
 
 notifier.on('timeout', function (notifierObject, options) {
     if(!currentTrackingSessionId) return;
-    if(debug) console.log('Notification timeout');
+    if(cfg.debug) console.log('Notification timeout');
     var currentSession = getSession(currentTrackingSessionId);
     currentSession.screenshots[currentScreenshot.time] = currentScreenshot;
     currentSession.lastScreenshotTime = currentScreenshot.time;
