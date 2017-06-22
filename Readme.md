@@ -10,9 +10,12 @@
 * **Handle async screenshots upload (when offline during tracking)**
 * Create clearing services
     * ~~Server (remove unneeded imgs and data)~~ **Poorly tested feature**
-    * Clear local screenshots after successful upload
+    * ~~Clear local screenshots after successful upload~~
 * ~~Fix screenshot start time~~
+* **Fix screenshots duration**
 * **Add user activity monitor**
+    * ~~Turn off tracking in case of inactivity~~
+    * Measure user activity level
 * ~~Add subsystem to duplicate data (to make sure that user didn't manualy remove/add any data)~~
 * **Protect source code**
 * Make UI/UX better
